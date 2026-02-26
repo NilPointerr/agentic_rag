@@ -1,0 +1,12 @@
+ddgs
+fastapi
+groq
+nltk
+pinecone
+pydantic-settings
+pypdf
+python-dotenv
+python-multipart
+sentence-transformers
+tiktoken
+uvicorn
