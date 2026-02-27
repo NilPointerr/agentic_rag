@@ -87,9 +87,9 @@ async def ingest_documents(file: UploadFile = File(...)):
 
 @router.post("/query")
 @log_execution
-def query_agent(request: QueryRequest):
+async def query_agent(request: QueryRequest):
     try:
-        answer = rag_agent(request.query)
+        answer = await rag_agent(request.query)
         return {
             "query": request.query,
             "answer": answer

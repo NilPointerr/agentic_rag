@@ -52,6 +52,9 @@ EMBEDDING_MODEL=all-MiniLM-L6-v2                    # optional, default in code
 EMBEDDING_DIMENSION=384                             # must match the model
 TOP_K=3                                             # optional
 SIMILARITY_THRESHOLD=0.65                           # optional
+
+# MCP client (API server -> MCP server)
+MCP_SERVER_URL=http://127.0.0.1:9000/mcp
 ```
 
 These are read via `app/config/settings.py` using `pydantic-settings`.
@@ -96,6 +99,37 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 Once running, you can access:
 - **Interactive docs (Swagger)**: `http://localhost:8000/docs`
 - **ReDoc docs**: `http://localhost:8000/redoc`
+
+---
+
+### Running with MCP Server
+
+Run MCP server and API server in separate terminals.
+
+#### Terminal 1: Start MCP server
+
+```bash
+cd /home/dev62/Documents/agentic_rag
+uv run python -m app.mcp.server
+```
+
+Notes:
+- `--port 9000` will not work here, because `app/mcp/server.py` does not parse CLI args.
+- Use `FASTMCP_PORT` (and optionally `FASTMCP_HOST`) environment variables.
+
+#### Terminal 2: Start FastAPI server
+
+```bash
+cd /home/dev62/Documents/agentic_rag
+export MCP_SERVER_URL=http://127.0.0.1:8000/mcp
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+#### Verify MCP connection
+
+When you hit `POST /query`, API logs should include:
+- `Attempting to connect to MCP server...`
+- `Successfully got response from MCP server.`
 
 ---
 
@@ -155,4 +189,5 @@ curl -X POST "http://localhost:8000/query" \
 - Retrieval is implemented in `app/retriever/retriever.py` and used inside `rag_agent`.
 - The agent uses **tool calls** (vector search + web search) via Groq; you can customize tools in `app/llm_tools/llm_tools.py`.
 - For local experimentation, you can modify or extend `rag_agent` in `app/agent/rag_agent.py`.
-
+- If retrieval returns empty context, verify index stats and index name first:
+  - `uv run python -c "from app.vectorstore.pinecone_client import index; print(index.describe_index_stats())"`

@@ -4,16 +4,18 @@ from app.llm_tools.llm_tools import tools
 from app.utils.logger import logger
 client = Groq(api_key=settings.GROQ_API_KEY)
 
-def generate_answer(messages: list):
-    logger.info(f"Generating answer with messages: {messages}")
-    response = client.chat.completions.create(
-        # model="mixtral-8x7b-32768",
-        model = "openai/gpt-oss-20b",
-        messages=messages,
-        tools=tools,
-        tool_choice="auto" ,
-        temperature=0.2
-    )
+def generate_answer(messages: list, use_tools: bool = True):
+    # logger.info(f"Generating answer with messages: {messages}")
+    payload = {
+        "model": "openai/gpt-oss-20b",
+        "messages": messages,
+        "temperature": 0.2,
+    }
+    if use_tools:
+        payload["tools"] = tools
+        payload["tool_choice"] = "auto"
+
+    response = client.chat.completions.create(**payload)
 
     # logger.info(f"Generated response: {response}")
     return response
