@@ -1,16 +1,14 @@
 import nltk
 
-def chunk_text(text, chunk_size=500, overlap=100):
-    chunks = []
-    start = 0
-    
-    while start < len(text):
-        end = start + chunk_size
-        chunks.append(text[start:end])
-        start += chunk_size - overlap
-    
-    return chunks
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+def chunk_text(text: str):
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500,
+        chunk_overlap=100,
+        separators=["\n\n", "\n", ".", " ", ""]
+    )
+    return splitter.split_text(text)
 
 def sentence_chunk(text, max_sentences=5, overlap=1):
     sentences = nltk.sent_tokenize(text)
