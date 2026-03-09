@@ -46,7 +46,7 @@ PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_INDEX_NAME=agentic-rag-index-dimension-384  # optional, has this default
 
 GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL=mixtral-8x7b-32768                       # optional, default in code
+GROQ_MODEL=openai/gpt-oss-20b                       # optional, default in code
 
 EMBEDDING_MODEL=all-MiniLM-L6-v2                    # optional, default in code
 EMBEDDING_DIMENSION=384                             # must match the model

@@ -7,8 +7,7 @@ client = Groq(api_key=settings.GROQ_API_KEY)
 def generate_answer(messages: list):
     logger.info(f"Generating answer with messages: {messages}")
     response = client.chat.completions.create(
-        # model="mixtral-8x7b-32768",
-        model = "openai/gpt-oss-20b",
+        model=settings.GROQ_MODEL,
         messages=messages,
         tools=tools,
         tool_choice="auto" ,

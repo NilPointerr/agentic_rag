@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # GROQ CONFIG
     # -------------------------
     GROQ_API_KEY: str
-    GROQ_MODEL: str = "mixtral-8x7b-32768"
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
 
     # -------------------------
     # EMBEDDING CONFIG
