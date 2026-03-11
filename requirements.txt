@@ -10,3 +10,7 @@ python-multipart
 sentence-transformers
 tiktoken
 uvicorn
+langgraph
+langchain
+langchain-community
+langchain-core
