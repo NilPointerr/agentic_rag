@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # PINECONE CONFIG
     # -------------------------
     PINECONE_API_KEY: str
-    PINECONE_INDEX_NAME: str = "agentic-rag-index-dimension-384"
+    PINECONE_INDEX_NAME: str = "agentic-rag-index-v1"
 
     # -------------------------
     # GROQ CONFIG
