@@ -1,11 +1,13 @@
-def tool_decision_prompt(query: str):
+def tool_decision_prompt(query: str) -> str:
+    """Return legacy prompt that asks model to choose retrieval tools."""
+
     return f"""
 You are an AI agent with access to tools.
 
 TOOLS:
-1. vector_search(query) → Search internal document database.
-2. web_search(query) → Search the internet.
-3. direct_answer() → Answer using your own knowledge (LAST RESORT).
+1. vector_search(query) -> Search internal document database.
+2. web_search(query) -> Search the internet.
+3. direct_answer() -> Answer using your own knowledge (LAST RESORT).
 
 IMPORTANT TOOL PRIORITY RULES:
 

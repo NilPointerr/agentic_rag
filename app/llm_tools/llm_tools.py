@@ -7,14 +7,11 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "User search query"
-                    }
+                    "query": {"type": "string", "description": "User search query"}
                 },
-                "required": ["query"]
-            }
-        }
+                "required": ["query"],
+            },
+        },
     },
     {
         "type": "function",
@@ -24,13 +21,10 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "User search query"
-                    }
+                    "query": {"type": "string", "description": "User search query"}
                 },
-                "required": ["query"]
-            }
-        }
-    }
+                "required": ["query"],
+            },
+        },
+    },
 ]
