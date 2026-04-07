@@ -23,6 +23,7 @@ limiter = Limiter(key_func=get_remote_address) if Limiter else NoOpLimiter()
 
 
 def configure_rate_limiter(app):
+    """Attach rate-limiting middleware and handlers when enabled."""
     if not settings.RATE_LIMIT_ENABLED:
         return
 
@@ -37,6 +38,7 @@ def configure_rate_limiter(app):
 
 
 async def _rate_limit_exceeded_handler(request, exc):
+    """Return a standard JSON response for rate-limit violations."""
     from fastapi.responses import JSONResponse
 
     return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})

@@ -39,10 +39,12 @@ const defaultIngest =
   "Upload a PDF to the `/ingest` endpoint. Once it is processed, you can query the backend from the workspace on the right.";
 
 function joinUrl(path: string) {
+  /** Build a backend URL from the configured API base and a path. */
   return `${API_BASE_URL}${path}`;
 }
 
 function toAbsoluteUrl(url: string) {
+  /** Convert relative backend URLs into absolute links for the browser. */
   if (/^https?:\/\//i.test(url)) {
     return url;
   }
@@ -51,6 +53,7 @@ function toAbsoluteUrl(url: string) {
 }
 
 function readErrorMessage(payload: unknown, fallback: string) {
+  /** Read a FastAPI-style error payload and fall back to a generic message. */
   if (
     payload &&
     typeof payload === "object" &&
@@ -64,6 +67,7 @@ function readErrorMessage(payload: unknown, fallback: string) {
 }
 
 function readRequestError(error: unknown, action: string) {
+  /** Convert request failures into user-friendly status text. */
   if (error instanceof TypeError && error.message === "Failed to fetch") {
     return `Cannot reach the backend at ${API_BASE_URL}. Start the FastAPI server and verify the API URL before trying to ${action}.`;
   }
@@ -76,6 +80,7 @@ function readRequestError(error: unknown, action: string) {
 }
 
 export function RagConsole() {
+  /** Render the RAG upload, query, answer, and source-explorer UI. */
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [question, setQuestion] = useState("");
   const [ingestLoading, setIngestLoading] = useState(false);
@@ -92,6 +97,7 @@ export function RagConsole() {
   const fileLabel = selectedFile ? selectedFile.name : "No PDF selected yet";
 
   async function handleIngest(event: FormEvent<HTMLFormElement>) {
+    /** Upload the selected PDF and trigger backend ingestion. */
     event.preventDefault();
 
     if (!selectedFile) {
@@ -144,6 +150,7 @@ export function RagConsole() {
   }
 
   async function handleQuery(event: FormEvent<HTMLFormElement>) {
+    /** Submit the current question and display the returned answer. */
     event.preventDefault();
 
     const trimmedQuestion = question.trim();
@@ -190,12 +197,14 @@ export function RagConsole() {
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    /** Track the currently selected PDF file for upload. */
     setSelectedFile(event.target.files?.[0] ?? null);
     setIngestError(null);
     setIngestStatus(null);
   }
 
   function getSourceHref(source: QuerySource) {
+    /** Resolve the best clickable URL for a returned source item. */
     const href = source.page_url || source.source_url;
     return href ? toAbsoluteUrl(href) : null;
   }

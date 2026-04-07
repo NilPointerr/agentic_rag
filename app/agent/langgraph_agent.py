@@ -104,6 +104,7 @@ class AgentState(TypedDict):
 # Vector Search Node
 # -----------------------------
 def vector_node(state: AgentState):
+    """Fetch internal vector-search context for the current query."""
 
     logger.info(f"Performing vector search for query: {state['query']}")
 
@@ -126,6 +127,7 @@ def vector_node(state: AgentState):
 # Context Evaluation Node
 # -----------------------------
 def evaluate_context_node(state: AgentState):
+    """Ask the LLM whether retrieved internal context is sufficient."""
 
     logger.info("Evaluating context relevance")
 
@@ -169,6 +171,7 @@ NO
 # Web Search Node
 # -----------------------------
 def web_node(state: AgentState):
+    """Fetch supplemental web results when internal context is insufficient."""
 
     logger.info("Performing web search")
 
@@ -215,6 +218,7 @@ def web_node(state: AgentState):
 # Answer Generation Node
 # -----------------------------
 def answer_node(state: AgentState):
+    """Generate the final user-facing answer from the current context."""
 
     logger.info("Generating final answer")
 
@@ -259,6 +263,7 @@ Rules:
 # Routing Logic
 # -----------------------------
 def route_decision(state: AgentState):
+    """Route execution to web search or answer generation."""
 
     if state["use_web"]:
         logger.info("Context not relevant -> switching to web search")

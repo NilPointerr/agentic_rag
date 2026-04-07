@@ -4,10 +4,12 @@ from app.ingestion.embedder import embed_texts
 
 
 def get_index():
+    """Return the configured Pinecone index instance."""
     return index
 
 
 def retrieve(query: str, top_k=3):
+    """Retrieve the top matching chunks and their source metadata."""
     logger.info(f"Performing vector search for query: {query}")
     query_vector = embed_texts([query])[0]
 

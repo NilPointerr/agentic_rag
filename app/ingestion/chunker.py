@@ -2,6 +2,7 @@ import nltk
 
 
 def chunk_text(text, chunk_size=500, overlap=100):
+    """Split plain text into overlapping character-based chunks."""
     chunks = []
     start = 0
     
@@ -21,6 +22,7 @@ def chunk_pdf_pages(
     chunk_size=500,
     overlap=100,
 ):
+    """Split page text into chunks while preserving source metadata."""
     chunks: list[dict] = []
 
     for page in pages:
@@ -54,6 +56,7 @@ def chunk_pdf_pages(
 
 
 def sentence_chunk(text, max_sentences=5, overlap=1):
+    """Split text into overlapping sentence-based chunks."""
     sentences = nltk.sent_tokenize(text)
     chunks = []
 

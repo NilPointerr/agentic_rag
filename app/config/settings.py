@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # PINECONE CONFIG
     # -------------------------
     PINECONE_API_KEY: str
-    PINECONE_INDEX_NAME: str = "agentic-rag-index-v1"
+    PINECONE_INDEX_NAME: str = "agentic-rag-index-v2"
 
     # -------------------------
     # GROQ CONFIG
@@ -51,6 +51,7 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings():
+    """Return a cached settings object loaded from environment variables."""
     return Settings()
 
 

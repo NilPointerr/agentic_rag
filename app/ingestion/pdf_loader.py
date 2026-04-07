@@ -15,11 +15,13 @@ class ImageOnlyPdfError(PdfTextExtractionError):
 
 
 def load_pdf(file_path: str) -> str:
+    """Load all extracted page text from a PDF into a single string."""
     pages = load_pdf_pages(file_path)
     return "\n".join(page["text"] for page in pages if page["text"])
 
 
 def load_pdf_pages(file_path: str) -> list[dict]:
+    """Extract text page by page from a PDF, with optional OCR fallback."""
     reader = PdfReader(file_path)
     pages: list[dict] = []
 
@@ -46,10 +48,12 @@ def load_pdf_pages(file_path: str) -> list[dict]:
 
 
 def _has_command(command: str) -> bool:
+    """Return whether a shell command is available on the host."""
     return shutil.which(command) is not None
 
 
 def _render_pdf_to_images(file_path: str, output_prefix: Path) -> None:
+    """Render PDF pages to PNG images for OCR processing."""
     subprocess.run(
         [
             "pdftoppm",
@@ -64,6 +68,7 @@ def _render_pdf_to_images(file_path: str, output_prefix: Path) -> None:
 
 
 def _load_pdf_pages_with_tesseract(file_path: str, page_count: int) -> list[dict]:
+    """Use Tesseract OCR to extract text from rendered PDF page images."""
     if not (_has_command("tesseract") and _has_command("pdftoppm")):
         return []
 

@@ -11,7 +11,8 @@ from app.config.settings import settings
 from app.ingestion.chunker import chunk_pdf_pages
 from app.ingestion.embedder import embed_and_store
 from app.ingestion.pdf_loader import ImageOnlyPdfError, load_pdf_pages
-from app.utils.logger import log_execution
+from app.utils.logger import log_execution, logger
+from app.vectorstore.pinecone_client import get_index_name
 
 router = APIRouter()
 
@@ -39,8 +40,10 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 @router.post("/ingest")
 @log_execution
 async def ingest_documents(file: UploadFile = File(...)):
+    """Save an uploaded PDF, extract its text, and store chunk embeddings."""
 
     try:
+        logger.info(f"Starting ingest for file: {file.filename}")
         filename = Path(file.filename or "upload.pdf").name
 
         if not filename.lower().endswith(".pdf"):
@@ -69,12 +72,17 @@ async def ingest_documents(file: UploadFile = File(...)):
             source_url=f"/uploads/{quote(filename)}",
         )
 
+        logger.info(
+            f"Created {len(chunks)} chunks for file '{filename}'. "
+            f"Target Pinecone index: '{get_index_name()}'."
+        )
         embed_and_store(chunks)
 
         return {
             "message": "✅ PDF ingested successfully",
             "file_name": filename,
-            "chunks_created": len(chunks)
+            "chunks_created": len(chunks),
+            "pinecone_index": get_index_name(),
         }
 
     except HTTPException:
@@ -90,6 +98,7 @@ async def ingest_documents(file: UploadFile = File(...)):
 @router.post("/query")
 @log_execution
 def query_agent(request: QueryRequest):
+    """Run the RAG agent for a user query and return answer plus sources."""
     try:
         if len(request.query) > settings.MAX_QUERY_LENGTH:
             raise HTTPException(

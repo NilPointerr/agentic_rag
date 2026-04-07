@@ -6,6 +6,7 @@ import traceback
 import inspect
 
 def setup_logger():
+    """Create and configure the shared application logger."""
     logger = logging.getLogger("agentic_rag")
     logger.setLevel(logging.INFO)
 
@@ -36,6 +37,7 @@ def log_execution(func):
 
     @functools.wraps(func)
     async def async_wrapper(*args, **kwargs):
+        """Log execution details for async callables."""
         start_time = time.time()
         logger.info(f"Started: {func.__name__}")
 
@@ -56,6 +58,7 @@ def log_execution(func):
 
     @functools.wraps(func)
     def sync_wrapper(*args, **kwargs):
+        """Log execution details for sync callables."""
         start_time = time.time()
         logger.info(f"Started: {func.__name__}")
 

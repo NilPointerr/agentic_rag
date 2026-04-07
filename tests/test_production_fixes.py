@@ -13,10 +13,12 @@ from app.search_tools import web_search
 
 @pytest.fixture
 def fake_request():
+    """Provide a minimal Starlette request object for direct route tests."""
     return Request({"type": "http", "method": "POST", "path": "/", "headers": []})
 
 
 def test_retrieve_returns_all_matches(monkeypatch):
+    """Ensure retrieval preserves all Pinecone matches without threshold filtering."""
     monkeypatch.setattr(
         retriever,
         "embed_texts",
@@ -62,6 +64,7 @@ def test_retrieve_returns_all_matches(monkeypatch):
 
 
 def test_web_search_returns_structured_results(monkeypatch):
+    """Ensure web search output is normalized into title/body/href dictionaries."""
     class FakeDDGS:
         def __enter__(self):
             return self
@@ -86,6 +89,7 @@ def test_web_search_returns_structured_results(monkeypatch):
 
 
 def test_query_endpoint_rejects_long_queries(fake_request):
+    """Ensure overlong queries are rejected before agent execution."""
     long_query = "x" * (settings.MAX_QUERY_LENGTH + 1)
 
     with pytest.raises(HTTPException) as exc_info:
@@ -97,6 +101,7 @@ def test_query_endpoint_rejects_long_queries(fake_request):
 
 @pytest.mark.anyio
 async def test_ingest_endpoint_rejects_path_traversal_filename(monkeypatch, fake_request):
+    """Ensure uploaded filenames are normalized before saving to disk."""
     captured = {}
 
     monkeypatch.setattr(
@@ -136,6 +141,7 @@ async def test_ingest_endpoint_rejects_path_traversal_filename(monkeypatch, fake
 
 @pytest.mark.anyio
 async def test_ingest_endpoint_rejects_scanned_pdf_without_ocr(monkeypatch):
+    """Ensure image-only PDFs return a clear client-facing ingestion error."""
     monkeypatch.setattr(
         "app.api.routes.load_pdf_pages",
         lambda path: (_ for _ in ()).throw(
@@ -155,6 +161,7 @@ async def test_ingest_endpoint_rejects_scanned_pdf_without_ocr(monkeypatch):
 
 
 def test_auth_dependency_enforces_bearer_token_when_enabled():
+    """Ensure auth rejects missing bearer tokens when the feature is enabled."""
     from app.security import verify_bearer_token
 
     original_auth_enabled = settings.AUTH_ENABLED

@@ -3,6 +3,7 @@ from app.utils.logger import logger
 
 
 def web_search(query: str, max_results=5):
+    """Run a web search and normalize results into a structured shape."""
     logger.info(f"Performing web search for query: {query}")
 
     with DDGS() as ddgs:
