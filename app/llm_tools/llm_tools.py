@@ -26,14 +26,13 @@ def vector_search_tool(query: str) -> dict:
 
     Guidance for the agent:
     - ALWAYS try this tool first for factual or document-based questions.
-    - If the similarity score is low (< 0.75), consider using web_search_tool
-      to fetch more up-to-date information.
     """
 
-    texts, score = retrieve(query)
+    sources, score = retrieve(query)
 
     return {
-        "context": texts,
+        "context": [source["text"] for source in sources],
+        "sources": sources,
         "score": score
     }
 
@@ -46,7 +45,7 @@ def web_search_tool(query: str) -> list[dict]:
     Use this tool when:
     - The internal knowledge base does not contain relevant information.
     - The question requires recent or real-time data.
-    - The vector_search_tool returns a low similarity score.
+    - The retrieved internal context is not sufficient for the question.
 
     Examples of suitable queries:
     - Current news

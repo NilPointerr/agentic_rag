@@ -6,12 +6,27 @@ import remarkGfm from "remark-gfm";
 
 type IngestResponse = {
   message: string;
+  file_name?: string;
   chunks_created: number;
+};
+
+type QuerySource = {
+  text?: string;
+  score?: number;
+  source_file?: string;
+  source_path?: string;
+  source_url?: string;
+  page_number?: number;
+  page_url?: string;
+  title?: string;
+  snippet?: string;
+  source_type?: string;
 };
 
 type QueryResponse = {
   query: string;
   answer: string;
+  sources?: QuerySource[];
 };
 
 const API_BASE_URL =
@@ -25,6 +40,14 @@ const defaultIngest =
 
 function joinUrl(path: string) {
   return `${API_BASE_URL}${path}`;
+}
+
+function toAbsoluteUrl(url: string) {
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+
+  return joinUrl(url);
 }
 
 function readErrorMessage(payload: unknown, fallback: string) {
@@ -63,6 +86,7 @@ export function RagConsole() {
   const [queryError, setQueryError] = useState<string | null>(null);
   const [ingestResult, setIngestResult] = useState(defaultIngest);
   const [answer, setAnswer] = useState(defaultAnswer);
+  const [sources, setSources] = useState<QuerySource[]>([]);
 
   const backendReady = !ingestError && !queryError;
   const fileLabel = selectedFile ? selectedFile.name : "No PDF selected yet";
@@ -96,13 +120,15 @@ export function RagConsole() {
         throw new Error(readErrorMessage(payload, "Ingestion failed."));
       }
 
+      const ingestPayload = payload as IngestResponse;
+
       setIngestStatus("PDF ingested successfully.");
       setIngestResult(
         JSON.stringify(
           {
-            file_name: selectedFile.name,
-            message: payload.message,
-            chunks_created: payload.chunks_created
+            file_name: ingestPayload.file_name ?? selectedFile.name,
+            message: ingestPayload.message,
+            chunks_created: ingestPayload.chunks_created
           },
           null,
           2
@@ -131,6 +157,7 @@ export function RagConsole() {
     setQueryError(null);
     setQueryStatus("Generating answer from the RAG agent...");
     setAnswer("Working...");
+    setSources([]);
 
     try {
       const response = await fetch(joinUrl("/query"), {
@@ -147,12 +174,16 @@ export function RagConsole() {
         throw new Error(readErrorMessage(payload, "Query failed."));
       }
 
+      const queryPayload = payload as QueryResponse;
+
       setQueryStatus("Answer received.");
-      setAnswer(payload.answer || "No answer returned.");
+      setAnswer(queryPayload.answer || "No answer returned.");
+      setSources(queryPayload.sources ?? []);
     } catch (error) {
       setQueryStatus(null);
       setQueryError(readRequestError(error, "send the query"));
       setAnswer("The question could not be processed.");
+      setSources([]);
     } finally {
       setQueryLoading(false);
     }
@@ -162,6 +193,11 @@ export function RagConsole() {
     setSelectedFile(event.target.files?.[0] ?? null);
     setIngestError(null);
     setIngestStatus(null);
+  }
+
+  function getSourceHref(source: QuerySource) {
+    const href = source.page_url || source.source_url;
+    return href ? toAbsoluteUrl(href) : null;
   }
 
   return (
@@ -309,6 +345,62 @@ export function RagConsole() {
               >
                 {answer}
               </ReactMarkdown>
+            </div>
+
+            <div className="sources-panel">
+              <div className="panel-topline panel-topline-compact">
+                <p className="rail-label">Retrieved Sources</p>
+                <span className="answer-state">
+                  {sources.length ? `${sources.length} attached` : "No source metadata"}
+                </span>
+              </div>
+
+              {sources.length ? (
+                <div className="sources-list">
+                  {sources.map((source, index) => {
+                    const href = getSourceHref(source);
+                    const title =
+                      source.source_file || source.title || `Source ${index + 1}`;
+
+                    return (
+                      <article className="source-card" key={`${title}-${index}`}>
+                        <div className="source-meta">
+                          <strong>{title}</strong>
+                          <span>
+                            {source.page_number
+                              ? `Page ${source.page_number}`
+                              : source.source_type === "web"
+                                ? "Web result"
+                                : "Stored chunk"}
+                          </span>
+                          {typeof source.score === "number" ? (
+                            <span>Score {source.score.toFixed(3)}</span>
+                          ) : null}
+                        </div>
+
+                        <p className="source-snippet">
+                          {source.snippet || source.text || "No preview available."}
+                        </p>
+
+                        {href ? (
+                          <a href={href} rel="noreferrer" target="_blank">
+                            Open source
+                          </a>
+                        ) : (
+                          <span className="source-path">
+                            {source.source_path || "Link unavailable"}
+                          </span>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="helper-copy source-empty">
+                  Ingest a PDF again after this update, then ask a question to see file,
+                  page, and link metadata here.
+                </p>
+              )}
             </div>
           </div>
         </section>

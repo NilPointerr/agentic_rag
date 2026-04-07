@@ -151,7 +151,8 @@ pre {
 .rail-label,
 .helper-copy,
 .answer-state,
-.panel-badge {
+.panel-badge,
+.source-path {
   font-family: "Segoe UI", Arial, sans-serif;
 }
 
@@ -183,6 +184,11 @@ pre {
   display: grid;
   gap: 20px;
   align-content: start;
+}
+
+.answer-panel {
+  display: grid;
+  gap: 20px;
 }
 
 .rail-card,
@@ -376,6 +382,10 @@ button:disabled {
   margin-bottom: 16px;
 }
 
+.panel-topline-compact {
+  margin-bottom: 0;
+}
+
 .panel-badge,
 .answer-state {
   padding: 8px 12px;
@@ -429,6 +439,51 @@ button:disabled {
 .result-card.spacious {
   min-height: 320px;
   padding: 24px;
+}
+
+.sources-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.sources-list {
+  display: grid;
+  gap: 12px;
+}
+
+.source-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid rgba(17, 94, 89, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.source-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+}
+
+.source-meta strong {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.98rem;
+}
+
+.source-meta span {
+  color: var(--muted);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.84rem;
+}
+
+.source-snippet,
+.source-empty,
+.source-path {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .markdown-body {

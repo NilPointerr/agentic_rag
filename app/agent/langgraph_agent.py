@@ -84,7 +84,7 @@
 # graph = builder.compile()
 
 
-from typing import TypedDict, List
+from typing import Any, List, TypedDict
 from langgraph.graph import StateGraph
 
 from app.llm.groq_client import generate_answer
@@ -95,6 +95,7 @@ from app.utils.logger import logger
 class AgentState(TypedDict):
     query: str
     context: List[str]
+    sources: List[dict[str, Any]]
     use_web: bool
     answer: str
 
@@ -111,11 +112,13 @@ def vector_node(state: AgentState):
     })
 
     context = result["context"]
+    sources = result.get("sources", [])
 
     logger.info(f"Vector search returned {len(context)} documents")
 
     return {
-        "context": context
+        "context": context,
+        "sources": sources,
     }
 
 
@@ -194,7 +197,18 @@ def web_node(state: AgentState):
         context.append(text)
 
     return {
-        "context": context
+        "context": context,
+        "sources": [
+            {
+                "title": r.get("title", ""),
+                "snippet": r.get("body", ""),
+                "source_url": r.get("href", ""),
+                "page_url": r.get("href", ""),
+                "source_type": "web",
+            }
+            for r in results[:5]
+            if isinstance(r, dict)
+        ],
     }
 
 # -----------------------------

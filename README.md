@@ -52,7 +52,6 @@ GROQ_MODEL=mixtral-8x7b-32768                       # optional, default in code
 EMBEDDING_MODEL=all-MiniLM-L6-v2                    # optional, default in code
 EMBEDDING_DIMENSION=384                             # must match the model
 TOP_K=3                                             # optional
-SIMILARITY_THRESHOLD=0.65                           # optional
 CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
 ```
 

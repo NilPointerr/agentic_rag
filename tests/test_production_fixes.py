@@ -16,7 +16,7 @@ def fake_request():
     return Request({"type": "http", "method": "POST", "path": "/", "headers": []})
 
 
-def test_retrieve_filters_matches_by_threshold(monkeypatch):
+def test_retrieve_returns_all_matches(monkeypatch):
     monkeypatch.setattr(
         retriever,
         "embed_texts",
@@ -34,10 +34,31 @@ def test_retrieve_filters_matches_by_threshold(monkeypatch):
 
     monkeypatch.setattr(retriever, "get_index", lambda: FakeIndex())
 
-    texts, score = retriever.retrieve("test query", top_k=2)
+    sources, score = retriever.retrieve("test query", top_k=2)
 
-    assert texts == ["high confidence"]
-    assert score == 0.92
+    assert sources == [
+        {
+            "text": "high confidence",
+            "score": 0.92,
+            "source_file": None,
+            "source_path": None,
+            "source_url": None,
+            "page_number": None,
+            "page_url": None,
+            "chunk_index": None,
+        },
+        {
+            "text": "low confidence",
+            "score": 0.40,
+            "source_file": None,
+            "source_path": None,
+            "source_url": None,
+            "page_number": None,
+            "page_url": None,
+            "chunk_index": None,
+        },
+    ]
+    assert score == 0.66
 
 
 def test_web_search_returns_structured_results(monkeypatch):
@@ -78,8 +99,14 @@ def test_query_endpoint_rejects_long_queries(fake_request):
 async def test_ingest_endpoint_rejects_path_traversal_filename(monkeypatch, fake_request):
     captured = {}
 
-    monkeypatch.setattr("app.api.routes.load_pdf", lambda path: "safe text")
-    monkeypatch.setattr("app.api.routes.chunk_text", lambda text: ["chunk"])
+    monkeypatch.setattr(
+        "app.api.routes.load_pdf_pages",
+        lambda path: [{"page_number": 1, "text": "safe text"}],
+    )
+    monkeypatch.setattr(
+        "app.api.routes.chunk_pdf_pages",
+        lambda **kwargs: [{"text": "chunk", "page_number": 1}],
+    )
     monkeypatch.setattr("app.api.routes.embed_and_store", lambda chunks: chunks)
 
     def fake_open(path, mode):
@@ -105,6 +132,26 @@ async def test_ingest_endpoint_rejects_path_traversal_filename(monkeypatch, fake
     assert response["chunks_created"] == 1
     assert ".." not in captured["path"]
     assert captured["path"].startswith("data/uploads/")
+
+
+@pytest.mark.anyio
+async def test_ingest_endpoint_rejects_scanned_pdf_without_ocr(monkeypatch):
+    monkeypatch.setattr(
+        "app.api.routes.load_pdf_pages",
+        lambda path: (_ for _ in ()).throw(
+            __import__("app.ingestion.pdf_loader", fromlist=["ImageOnlyPdfError"]).ImageOnlyPdfError(
+                "This PDF appears to be image-only or scanned. No selectable text was found. Install Tesseract OCR to ingest scanned PDFs."
+            )
+        ),
+    )
+
+    upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF-1.4 test"))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await ingest_documents(upload)
+
+    assert exc_info.value.status_code == 400
+    assert "image-only or scanned" in exc_info.value.detail
 
 
 def test_auth_dependency_enforces_bearer_token_when_enabled():
