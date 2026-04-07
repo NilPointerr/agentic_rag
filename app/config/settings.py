@@ -1,5 +1,5 @@
-import os
 from functools import lru_cache
+from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     APP_NAME: str = "Agentic RAG API"
     ENV: str = "development"
     DEBUG: bool = False
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
     # -------------------------
     # PINECONE CONFIG
@@ -36,9 +40,10 @@ class Settings(BaseSettings):
     TOP_K: int = 3
     SIMILARITY_THRESHOLD: float = 0.65
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+    )
 
 
 @lru_cache()

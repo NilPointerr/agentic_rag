@@ -179,13 +179,15 @@ def web_node(state: AgentState):
 
     for r in results[:5]:  # limit results for prompt size
 
-        # Case 1: result is dictionary
         if isinstance(r, dict):
             title = r.get("title", "")
             body = r.get("body", "")
-            text = f"{title}: {body}"
-
-        # Case 2: result is string
+            href = r.get("href", "")
+            text = (
+                f"Title: {title}\n"
+                f"Snippet: {body}\n"
+                f"URL: {href}"
+            )
         else:
             text = str(r)
 
@@ -205,7 +207,18 @@ def answer_node(state: AgentState):
     messages = [
         {
             "role": "system",
-            "content": "Answer the user using the provided context."
+            "content": """
+You are a helpful RAG assistant.
+
+Use the provided context to answer the user clearly and completely.
+
+Rules:
+- Synthesize multiple context items into one coherent answer.
+- Do not just copy a title or snippet.
+- If the answer comes from web context, provide a concise overview first, then 2-5 key points.
+- If URLs are present in the context, end with a short "Sources:" section listing them.
+- If context is weak or incomplete, say so briefly.
+"""
         },
         {
             "role": "system",

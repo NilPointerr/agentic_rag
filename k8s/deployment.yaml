@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentic-rag-deployment
+spec:
+  replicas: 3
+
+  selector:
+    matchLabels:
+      app: agentic-rag
+
+  template:
+    metadata:
+      labels:
+        app: agentic-rag
+
+    spec:
+      containers:
+      - name: agentic-rag
+        image: agentic_rag-agentic-rag:latest
+        imagePullPolicy: Never
+
+        ports:
+        - containerPort: 8002

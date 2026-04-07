@@ -5,18 +5,19 @@ from app.utils.logger import logger
 def web_search(query: str, max_results=5):
     logger.info(f"Performing web search for query: {query}")
 
-    results_text = []
-
     with DDGS() as ddgs:
         results = list(ddgs.text(query, max_results=max_results))
 
     logger.info(f"Web search returned {len(results)} results:- \n {results}")
 
+    structured_results = []
     for r in results:
-        results_text.append(
-            f"Title: {r.get('title', '')}\n"
-            f"Snippet: {r.get('body', '')}\n"
-            f"URL: {r.get('href', '')}\n"
+        structured_results.append(
+            {
+                "title": r.get("title", ""),
+                "body": r.get("body", ""),
+                "href": r.get("href", ""),
+            }
         )
 
-    return "\n".join(results_text)
+    return structured_results

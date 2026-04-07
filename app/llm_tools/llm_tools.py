@@ -39,7 +39,7 @@ def vector_search_tool(query: str) -> dict:
 
 
 @tool
-def web_search_tool(query: str) -> str:
+def web_search_tool(query: str) -> list[dict]:
     """
     Search the public internet for up-to-date information.
 
@@ -58,8 +58,8 @@ def web_search_tool(query: str) -> str:
         query (str): The user search query.
 
     Returns:
-        str: A summarized collection of web search results including
-             titles, snippets, and URLs.
+        list[dict]: Structured web results containing title, snippet,
+        and URL fields.
     """
 
     return web_search(query)

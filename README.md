@@ -21,6 +21,7 @@ The main HTTP API is exposed via FastAPI in `app.main:app`, with core logic impl
 
 - `app/main.py` – FastAPI application entrypoint.
 - `app/api/routes.py` – `/ingest` and `/query` endpoints.
+- `frontend/` – Next.js frontend for interacting with the API.
 - `app/ingestion/` – loading, chunking, embedding, and storing documents.
 - `app/vectorstore/pinecone_client.py` – Pinecone client & index management.
 - `app/llm/groq_client.py` – Groq client and chat completion wrapper.
@@ -52,6 +53,7 @@ EMBEDDING_MODEL=all-MiniLM-L6-v2                    # optional, default in code
 EMBEDDING_DIMENSION=384                             # must match the model
 TOP_K=3                                             # optional
 SIMILARITY_THRESHOLD=0.65                           # optional
+CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
 ```
 
 These are read via `app/config/settings.py` using `pydantic-settings`.
@@ -96,6 +98,62 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 Once running, you can access:
 - **Interactive docs (Swagger)**: `http://localhost:8000/docs`
 - **ReDoc docs**: `http://localhost:8000/redoc`
+
+---
+
+### Running The Next.js Frontend
+
+Create a frontend environment file:
+
+```bash
+cd /home/dev62/Documents/agentic_rag/frontend
+cp .env.local.example .env.local
+```
+
+Install dependencies:
+
+```bash
+cd /home/dev62/Documents/agentic_rag/frontend
+npm install
+```
+
+Run the frontend:
+
+```bash
+cd /home/dev62/Documents/agentic_rag/frontend
+npm run dev
+```
+
+Then open:
+- **Next.js UI**: `http://localhost:3000`
+
+The frontend expects the FastAPI backend to be running on `http://localhost:8000` by default. You can change that in `frontend/.env.local` by setting:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+---
+
+### Running Backend And Frontend Together
+
+Terminal 1:
+
+```bash
+cd /home/dev62/Documents/agentic_rag
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Terminal 2:
+
+```bash
+cd /home/dev62/Documents/agentic_rag/frontend
+npm run dev
+```
+
+Open:
+- **Frontend UI**: `http://localhost:3000`
+- **Backend API**: `http://localhost:8000`
 
 ---
 
