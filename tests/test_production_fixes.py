@@ -88,6 +88,41 @@ def test_web_search_returns_structured_results(monkeypatch):
     ]
 
 
+def test_web_image_search_returns_structured_results(monkeypatch):
+    """Ensure image search output is normalized into frontend-friendly fields."""
+    class FakeDDGS:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def images(self, query, max_results):
+            return [
+                {
+                    "title": "Result image",
+                    "image": "https://img.example.com/full.jpg",
+                    "thumbnail": "https://img.example.com/thumb.jpg",
+                    "url": "https://example.com/page",
+                    "source": "Example"
+                }
+            ]
+
+    monkeypatch.setattr(web_search, "DDGS", FakeDDGS, raising=False)
+
+    results = web_search.web_image_search("agentic rag")
+
+    assert results == [
+        {
+            "title": "Result image",
+            "image_url": "https://img.example.com/full.jpg",
+            "thumbnail_url": "https://img.example.com/thumb.jpg",
+            "source_url": "https://example.com/page",
+            "source": "Example",
+        }
+    ]
+
+
 def test_query_endpoint_rejects_long_queries(fake_request):
     """Ensure overlong queries are rejected before agent execution."""
     long_query = "x" * (settings.MAX_QUERY_LENGTH + 1)

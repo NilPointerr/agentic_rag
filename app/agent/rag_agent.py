@@ -10,5 +10,6 @@ def rag_agent(query: str):
     return {
         "answer": result["answer"],
         "sources": result.get("sources", []),
+        "images": result.get("images", []),
     }
 

@@ -1,17 +1,15 @@
 import nltk
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 def chunk_text(text, chunk_size=500, overlap=100):
     """Split plain text into overlapping character-based chunks."""
-    chunks = []
-    start = 0
-    
-    while start < len(text):
-        end = start + chunk_size
-        chunks.append(text[start:end])
-        start += chunk_size - overlap
-    
-    return chunks
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=overlap,
+        separators=["\n\n", "\n", ". ", " ", ""],
+    )
+    return splitter.split_text(text)
 
 
 def chunk_pdf_pages(
@@ -24,33 +22,34 @@ def chunk_pdf_pages(
 ):
     """Split page text into chunks while preserving source metadata."""
     chunks: list[dict] = []
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=overlap,
+        separators=["\n\n", "\n", ". ", " ", ""],
+    )
 
     for page in pages:
         page_text = page.get("text", "").strip()
         if not page_text:
             continue
 
-        start = 0
-        chunk_index = 0
+        for chunk_index, chunk_text_value in enumerate(
+            splitter.split_text(page_text)
+        ):
+            cleaned_text = chunk_text_value.strip()
+            if not cleaned_text:
+                continue
 
-        while start < len(page_text):
-            end = start + chunk_size
-            chunk_text_value = page_text[start:end].strip()
-
-            if chunk_text_value:
-                chunks.append(
-                    {
-                        "text": chunk_text_value,
-                        "source_file": source_file,
-                        "source_path": source_path,
-                        "source_url": source_url,
-                        "page_number": page.get("page_number"),
-                        "chunk_index": chunk_index,
-                    }
-                )
-
-            start += chunk_size - overlap
-            chunk_index += 1
+            chunks.append(
+                {
+                    "text": cleaned_text,
+                    "source_file": source_file,
+                    "source_path": source_path,
+                    "source_url": source_url,
+                    "page_number": page.get("page_number"),
+                    "chunk_index": chunk_index,
+                }
+            )
 
     return chunks
 

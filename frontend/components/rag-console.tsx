@@ -23,10 +23,19 @@ type QuerySource = {
   source_type?: string;
 };
 
+type QueryImage = {
+  title?: string;
+  image_url?: string;
+  thumbnail_url?: string;
+  source_url?: string;
+  source?: string;
+};
+
 type QueryResponse = {
   query: string;
   answer: string;
   sources?: QuerySource[];
+  images?: QueryImage[];
 };
 
 const API_BASE_URL =
@@ -92,6 +101,7 @@ export function RagConsole() {
   const [ingestResult, setIngestResult] = useState(defaultIngest);
   const [answer, setAnswer] = useState(defaultAnswer);
   const [sources, setSources] = useState<QuerySource[]>([]);
+  const [images, setImages] = useState<QueryImage[]>([]);
 
   const backendReady = !ingestError && !queryError;
   const fileLabel = selectedFile ? selectedFile.name : "No PDF selected yet";
@@ -165,6 +175,7 @@ export function RagConsole() {
     setQueryStatus("Generating answer from the RAG agent...");
     setAnswer("Working...");
     setSources([]);
+    setImages([]);
 
     try {
       const response = await fetch(joinUrl("/query"), {
@@ -186,11 +197,13 @@ export function RagConsole() {
       setQueryStatus("Answer received.");
       setAnswer(queryPayload.answer || "No answer returned.");
       setSources(queryPayload.sources ?? []);
+      setImages(queryPayload.images ?? []);
     } catch (error) {
       setQueryStatus(null);
       setQueryError(readRequestError(error, "send the query"));
       setAnswer("The question could not be processed.");
       setSources([]);
+      setImages([]);
     } finally {
       setQueryLoading(false);
     }
@@ -355,6 +368,59 @@ export function RagConsole() {
                 {answer}
               </ReactMarkdown>
             </div>
+
+            {images.length ? (
+              <div className="image-panel">
+                <div className="panel-topline panel-topline-compact">
+                  <p className="rail-label">Web Images</p>
+                  <span className="answer-state">{images.length} attached</span>
+                </div>
+
+                <div className="image-grid">
+                  {images.map((image, index) => {
+                    const imageSrc = image.thumbnail_url || image.image_url;
+                    const alt = image.title || `Web image ${index + 1}`;
+
+                    if (!imageSrc) {
+                      return null;
+                    }
+
+                    return (
+                      <article className="image-card" key={`${alt}-${index}`}>
+                        {image.source_url ? (
+                          <a href={image.source_url} rel="noreferrer" target="_blank">
+                            <img
+                              alt={alt}
+                              className="image-thumb"
+                              loading="lazy"
+                              src={imageSrc}
+                            />
+                          </a>
+                        ) : (
+                          <img
+                            alt={alt}
+                            className="image-thumb"
+                            loading="lazy"
+                            src={imageSrc}
+                          />
+                        )}
+
+                        <div className="image-meta">
+                          <strong>{alt}</strong>
+                          {image.source_url ? (
+                            <a href={image.source_url} rel="noreferrer" target="_blank">
+                              Open source
+                            </a>
+                          ) : (
+                            <span>{image.source || "Source unavailable"}</span>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
 
             <div className="sources-panel">
               <div className="panel-topline panel-topline-compact">

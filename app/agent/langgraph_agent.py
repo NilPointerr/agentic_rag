@@ -89,6 +89,7 @@ from langgraph.graph import StateGraph
 
 from app.llm.groq_client import generate_answer
 from app.llm_tools.llm_tools import vector_search_tool, web_search_tool
+from app.search_tools.web_search import web_image_search
 from app.utils.logger import logger
 
 
@@ -96,6 +97,7 @@ class AgentState(TypedDict):
     query: str
     context: List[str]
     sources: List[dict[str, Any]]
+    images: List[dict[str, Any]]
     use_web: bool
     answer: str
 
@@ -180,6 +182,7 @@ def web_node(state: AgentState):
     })
 
     logger.info(f"Web search returned {len(results)} results")
+    image_results = web_image_search(state["query"])
 
     context = []
 
@@ -212,6 +215,7 @@ def web_node(state: AgentState):
             for r in results[:5]
             if isinstance(r, dict)
         ],
+        "images": image_results,
     }
 
 # -----------------------------

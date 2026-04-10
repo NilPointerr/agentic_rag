@@ -113,6 +113,7 @@ def query_agent(request: QueryRequest):
             "query": request.query,
             "answer": result["answer"],
             "sources": result.get("sources", []),
+            "images": result.get("images", []),
         }
 
     except HTTPException:
