@@ -14,3 +14,4 @@ langgraph
 langchain
 langchain-community
 langchain-core
+langchain-text-splitters

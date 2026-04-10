@@ -6,6 +6,7 @@ from app.config.settings import settings
 def verify_bearer_token(
     authorization: str | None = Header(default=None),
 ) -> dict | None:
+    """Validate an incoming bearer token when auth is enabled."""
     if not settings.AUTH_ENABLED:
         return None
 

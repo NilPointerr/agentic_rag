@@ -84,17 +84,20 @@
 # graph = builder.compile()
 
 
-from typing import TypedDict, List
+from typing import Any, List, TypedDict
 from langgraph.graph import StateGraph
 
 from app.llm.groq_client import generate_answer
 from app.llm_tools.llm_tools import vector_search_tool, web_search_tool
+from app.search_tools.web_search import web_image_search
 from app.utils.logger import logger
 
 
 class AgentState(TypedDict):
     query: str
     context: List[str]
+    sources: List[dict[str, Any]]
+    images: List[dict[str, Any]]
     use_web: bool
     answer: str
 
@@ -103,6 +106,7 @@ class AgentState(TypedDict):
 # Vector Search Node
 # -----------------------------
 def vector_node(state: AgentState):
+    """Fetch internal vector-search context for the current query."""
 
     logger.info(f"Performing vector search for query: {state['query']}")
 
@@ -111,11 +115,13 @@ def vector_node(state: AgentState):
     })
 
     context = result["context"]
+    sources = result.get("sources", [])
 
     logger.info(f"Vector search returned {len(context)} documents")
 
     return {
-        "context": context
+        "context": context,
+        "sources": sources,
     }
 
 
@@ -123,6 +129,7 @@ def vector_node(state: AgentState):
 # Context Evaluation Node
 # -----------------------------
 def evaluate_context_node(state: AgentState):
+    """Ask the LLM whether retrieved internal context is sufficient."""
 
     logger.info("Evaluating context relevance")
 
@@ -166,6 +173,7 @@ NO
 # Web Search Node
 # -----------------------------
 def web_node(state: AgentState):
+    """Fetch supplemental web results when internal context is insufficient."""
 
     logger.info("Performing web search")
 
@@ -174,6 +182,7 @@ def web_node(state: AgentState):
     })
 
     logger.info(f"Web search returned {len(results)} results")
+    image_results = web_image_search(state["query"])
 
     context = []
 
@@ -194,13 +203,26 @@ def web_node(state: AgentState):
         context.append(text)
 
     return {
-        "context": context
+        "context": context,
+        "sources": [
+            {
+                "title": r.get("title", ""),
+                "snippet": r.get("body", ""),
+                "source_url": r.get("href", ""),
+                "page_url": r.get("href", ""),
+                "source_type": "web",
+            }
+            for r in results[:5]
+            if isinstance(r, dict)
+        ],
+        "images": image_results,
     }
 
 # -----------------------------
 # Answer Generation Node
 # -----------------------------
 def answer_node(state: AgentState):
+    """Generate the final user-facing answer from the current context."""
 
     logger.info("Generating final answer")
 
@@ -245,6 +267,7 @@ Rules:
 # Routing Logic
 # -----------------------------
 def route_decision(state: AgentState):
+    """Route execution to web search or answer generation."""
 
     if state["use_web"]:
         logger.info("Context not relevant -> switching to web search")

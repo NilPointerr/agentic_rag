@@ -10,16 +10,20 @@ class Settings(BaseSettings):
     APP_NAME: str = "Agentic RAG API"
     ENV: str = "development"
     DEBUG: bool = False
+    MAX_QUERY_LENGTH: int = 20000
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+    AUTH_ENABLED: bool = False
+    JWT_SECRET_KEY: str = ""
+    JWT_ALGORITHM: str = "HS256"
 
     # -------------------------
     # PINECONE CONFIG
     # -------------------------
     PINECONE_API_KEY: str
-    PINECONE_INDEX_NAME: str = "agentic-rag-index-v1"
+    PINECONE_INDEX_NAME: str = "agentic-rag-index-v2"
 
     # -------------------------
     # GROQ CONFIG
@@ -38,7 +42,6 @@ class Settings(BaseSettings):
     # RETRIEVAL CONFIG
     # -------------------------
     TOP_K: int = 3
-    SIMILARITY_THRESHOLD: float = 0.65
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -48,6 +51,7 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings():
+    """Return a cached settings object loaded from environment variables."""
     return Settings()
 
 

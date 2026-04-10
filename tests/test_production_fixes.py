@@ -13,10 +13,12 @@ from app.search_tools import web_search
 
 @pytest.fixture
 def fake_request():
+    """Provide a minimal Starlette request object for direct route tests."""
     return Request({"type": "http", "method": "POST", "path": "/", "headers": []})
 
 
-def test_retrieve_filters_matches_by_threshold(monkeypatch):
+def test_retrieve_returns_all_matches(monkeypatch):
+    """Ensure retrieval preserves all Pinecone matches without threshold filtering."""
     monkeypatch.setattr(
         retriever,
         "embed_texts",
@@ -34,13 +36,35 @@ def test_retrieve_filters_matches_by_threshold(monkeypatch):
 
     monkeypatch.setattr(retriever, "get_index", lambda: FakeIndex())
 
-    texts, score = retriever.retrieve("test query", top_k=2)
+    sources, score = retriever.retrieve("test query", top_k=2)
 
-    assert texts == ["high confidence"]
-    assert score == 0.92
+    assert sources == [
+        {
+            "text": "high confidence",
+            "score": 0.92,
+            "source_file": None,
+            "source_path": None,
+            "source_url": None,
+            "page_number": None,
+            "page_url": None,
+            "chunk_index": None,
+        },
+        {
+            "text": "low confidence",
+            "score": 0.40,
+            "source_file": None,
+            "source_path": None,
+            "source_url": None,
+            "page_number": None,
+            "page_url": None,
+            "chunk_index": None,
+        },
+    ]
+    assert score == 0.66
 
 
 def test_web_search_returns_structured_results(monkeypatch):
+    """Ensure web search output is normalized into title/body/href dictionaries."""
     class FakeDDGS:
         def __enter__(self):
             return self
@@ -64,7 +88,43 @@ def test_web_search_returns_structured_results(monkeypatch):
     ]
 
 
+def test_web_image_search_returns_structured_results(monkeypatch):
+    """Ensure image search output is normalized into frontend-friendly fields."""
+    class FakeDDGS:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def images(self, query, max_results):
+            return [
+                {
+                    "title": "Result image",
+                    "image": "https://img.example.com/full.jpg",
+                    "thumbnail": "https://img.example.com/thumb.jpg",
+                    "url": "https://example.com/page",
+                    "source": "Example"
+                }
+            ]
+
+    monkeypatch.setattr(web_search, "DDGS", FakeDDGS, raising=False)
+
+    results = web_search.web_image_search("agentic rag")
+
+    assert results == [
+        {
+            "title": "Result image",
+            "image_url": "https://img.example.com/full.jpg",
+            "thumbnail_url": "https://img.example.com/thumb.jpg",
+            "source_url": "https://example.com/page",
+            "source": "Example",
+        }
+    ]
+
+
 def test_query_endpoint_rejects_long_queries(fake_request):
+    """Ensure overlong queries are rejected before agent execution."""
     long_query = "x" * (settings.MAX_QUERY_LENGTH + 1)
 
     with pytest.raises(HTTPException) as exc_info:
@@ -76,10 +136,17 @@ def test_query_endpoint_rejects_long_queries(fake_request):
 
 @pytest.mark.anyio
 async def test_ingest_endpoint_rejects_path_traversal_filename(monkeypatch, fake_request):
+    """Ensure uploaded filenames are normalized before saving to disk."""
     captured = {}
 
-    monkeypatch.setattr("app.api.routes.load_pdf", lambda path: "safe text")
-    monkeypatch.setattr("app.api.routes.chunk_text", lambda text: ["chunk"])
+    monkeypatch.setattr(
+        "app.api.routes.load_pdf_pages",
+        lambda path: [{"page_number": 1, "text": "safe text"}],
+    )
+    monkeypatch.setattr(
+        "app.api.routes.chunk_pdf_pages",
+        lambda **kwargs: [{"text": "chunk", "page_number": 1}],
+    )
     monkeypatch.setattr("app.api.routes.embed_and_store", lambda chunks: chunks)
 
     def fake_open(path, mode):
@@ -107,7 +174,29 @@ async def test_ingest_endpoint_rejects_path_traversal_filename(monkeypatch, fake
     assert captured["path"].startswith("data/uploads/")
 
 
+@pytest.mark.anyio
+async def test_ingest_endpoint_rejects_scanned_pdf_without_ocr(monkeypatch):
+    """Ensure image-only PDFs return a clear client-facing ingestion error."""
+    monkeypatch.setattr(
+        "app.api.routes.load_pdf_pages",
+        lambda path: (_ for _ in ()).throw(
+            __import__("app.ingestion.pdf_loader", fromlist=["ImageOnlyPdfError"]).ImageOnlyPdfError(
+                "This PDF appears to be image-only or scanned. No selectable text was found. Install Tesseract OCR to ingest scanned PDFs."
+            )
+        ),
+    )
+
+    upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF-1.4 test"))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await ingest_documents(upload)
+
+    assert exc_info.value.status_code == 400
+    assert "image-only or scanned" in exc_info.value.detail
+
+
 def test_auth_dependency_enforces_bearer_token_when_enabled():
+    """Ensure auth rejects missing bearer tokens when the feature is enabled."""
     from app.security import verify_bearer_token
 
     original_auth_enabled = settings.AUTH_ENABLED

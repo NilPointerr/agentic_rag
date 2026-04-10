@@ -1,4 +1,5 @@
 def tool_decision_prompt(query: str):
+    """Build the prompt used to choose the next tool for a query."""
     return f"""
 You are an AI agent with access to tools.
 

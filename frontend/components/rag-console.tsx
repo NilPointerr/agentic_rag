@@ -6,12 +6,36 @@ import remarkGfm from "remark-gfm";
 
 type IngestResponse = {
   message: string;
+  file_name?: string;
   chunks_created: number;
+};
+
+type QuerySource = {
+  text?: string;
+  score?: number;
+  source_file?: string;
+  source_path?: string;
+  source_url?: string;
+  page_number?: number;
+  page_url?: string;
+  title?: string;
+  snippet?: string;
+  source_type?: string;
+};
+
+type QueryImage = {
+  title?: string;
+  image_url?: string;
+  thumbnail_url?: string;
+  source_url?: string;
+  source?: string;
 };
 
 type QueryResponse = {
   query: string;
   answer: string;
+  sources?: QuerySource[];
+  images?: QueryImage[];
 };
 
 const API_BASE_URL =
@@ -24,10 +48,21 @@ const defaultIngest =
   "Upload a PDF to the `/ingest` endpoint. Once it is processed, you can query the backend from the workspace on the right.";
 
 function joinUrl(path: string) {
+  /** Build a backend URL from the configured API base and a path. */
   return `${API_BASE_URL}${path}`;
 }
 
+function toAbsoluteUrl(url: string) {
+  /** Convert relative backend URLs into absolute links for the browser. */
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+
+  return joinUrl(url);
+}
+
 function readErrorMessage(payload: unknown, fallback: string) {
+  /** Read a FastAPI-style error payload and fall back to a generic message. */
   if (
     payload &&
     typeof payload === "object" &&
@@ -41,6 +76,7 @@ function readErrorMessage(payload: unknown, fallback: string) {
 }
 
 function readRequestError(error: unknown, action: string) {
+  /** Convert request failures into user-friendly status text. */
   if (error instanceof TypeError && error.message === "Failed to fetch") {
     return `Cannot reach the backend at ${API_BASE_URL}. Start the FastAPI server and verify the API URL before trying to ${action}.`;
   }
@@ -53,6 +89,7 @@ function readRequestError(error: unknown, action: string) {
 }
 
 export function RagConsole() {
+  /** Render the RAG upload, query, answer, and source-explorer UI. */
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [question, setQuestion] = useState("");
   const [ingestLoading, setIngestLoading] = useState(false);
@@ -63,11 +100,14 @@ export function RagConsole() {
   const [queryError, setQueryError] = useState<string | null>(null);
   const [ingestResult, setIngestResult] = useState(defaultIngest);
   const [answer, setAnswer] = useState(defaultAnswer);
+  const [sources, setSources] = useState<QuerySource[]>([]);
+  const [images, setImages] = useState<QueryImage[]>([]);
 
   const backendReady = !ingestError && !queryError;
   const fileLabel = selectedFile ? selectedFile.name : "No PDF selected yet";
 
   async function handleIngest(event: FormEvent<HTMLFormElement>) {
+    /** Upload the selected PDF and trigger backend ingestion. */
     event.preventDefault();
 
     if (!selectedFile) {
@@ -96,13 +136,15 @@ export function RagConsole() {
         throw new Error(readErrorMessage(payload, "Ingestion failed."));
       }
 
+      const ingestPayload = payload as IngestResponse;
+
       setIngestStatus("PDF ingested successfully.");
       setIngestResult(
         JSON.stringify(
           {
-            file_name: selectedFile.name,
-            message: payload.message,
-            chunks_created: payload.chunks_created
+            file_name: ingestPayload.file_name ?? selectedFile.name,
+            message: ingestPayload.message,
+            chunks_created: ingestPayload.chunks_created
           },
           null,
           2
@@ -118,6 +160,7 @@ export function RagConsole() {
   }
 
   async function handleQuery(event: FormEvent<HTMLFormElement>) {
+    /** Submit the current question and display the returned answer. */
     event.preventDefault();
 
     const trimmedQuestion = question.trim();
@@ -131,6 +174,8 @@ export function RagConsole() {
     setQueryError(null);
     setQueryStatus("Generating answer from the RAG agent...");
     setAnswer("Working...");
+    setSources([]);
+    setImages([]);
 
     try {
       const response = await fetch(joinUrl("/query"), {
@@ -147,21 +192,34 @@ export function RagConsole() {
         throw new Error(readErrorMessage(payload, "Query failed."));
       }
 
+      const queryPayload = payload as QueryResponse;
+
       setQueryStatus("Answer received.");
-      setAnswer(payload.answer || "No answer returned.");
+      setAnswer(queryPayload.answer || "No answer returned.");
+      setSources(queryPayload.sources ?? []);
+      setImages(queryPayload.images ?? []);
     } catch (error) {
       setQueryStatus(null);
       setQueryError(readRequestError(error, "send the query"));
       setAnswer("The question could not be processed.");
+      setSources([]);
+      setImages([]);
     } finally {
       setQueryLoading(false);
     }
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    /** Track the currently selected PDF file for upload. */
     setSelectedFile(event.target.files?.[0] ?? null);
     setIngestError(null);
     setIngestStatus(null);
+  }
+
+  function getSourceHref(source: QuerySource) {
+    /** Resolve the best clickable URL for a returned source item. */
+    const href = source.page_url || source.source_url;
+    return href ? toAbsoluteUrl(href) : null;
   }
 
   return (
@@ -309,6 +367,115 @@ export function RagConsole() {
               >
                 {answer}
               </ReactMarkdown>
+            </div>
+
+            {images.length ? (
+              <div className="image-panel">
+                <div className="panel-topline panel-topline-compact">
+                  <p className="rail-label">Web Images</p>
+                  <span className="answer-state">{images.length} attached</span>
+                </div>
+
+                <div className="image-grid">
+                  {images.map((image, index) => {
+                    const imageSrc = image.thumbnail_url || image.image_url;
+                    const alt = image.title || `Web image ${index + 1}`;
+
+                    if (!imageSrc) {
+                      return null;
+                    }
+
+                    return (
+                      <article className="image-card" key={`${alt}-${index}`}>
+                        {image.source_url ? (
+                          <a href={image.source_url} rel="noreferrer" target="_blank">
+                            <img
+                              alt={alt}
+                              className="image-thumb"
+                              loading="lazy"
+                              src={imageSrc}
+                            />
+                          </a>
+                        ) : (
+                          <img
+                            alt={alt}
+                            className="image-thumb"
+                            loading="lazy"
+                            src={imageSrc}
+                          />
+                        )}
+
+                        <div className="image-meta">
+                          <strong>{alt}</strong>
+                          {image.source_url ? (
+                            <a href={image.source_url} rel="noreferrer" target="_blank">
+                              Open source
+                            </a>
+                          ) : (
+                            <span>{image.source || "Source unavailable"}</span>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="sources-panel">
+              <div className="panel-topline panel-topline-compact">
+                <p className="rail-label">Retrieved Sources</p>
+                <span className="answer-state">
+                  {sources.length ? `${sources.length} attached` : "No source metadata"}
+                </span>
+              </div>
+
+              {sources.length ? (
+                <div className="sources-list">
+                  {sources.map((source, index) => {
+                    const href = getSourceHref(source);
+                    const title =
+                      source.source_file || source.title || `Source ${index + 1}`;
+
+                    return (
+                      <article className="source-card" key={`${title}-${index}`}>
+                        <div className="source-meta">
+                          <strong>{title}</strong>
+                          <span>
+                            {source.page_number
+                              ? `Page ${source.page_number}`
+                              : source.source_type === "web"
+                                ? "Web result"
+                                : "Stored chunk"}
+                          </span>
+                          {typeof source.score === "number" ? (
+                            <span>Score {source.score.toFixed(3)}</span>
+                          ) : null}
+                        </div>
+
+                        <p className="source-snippet">
+                          {source.snippet || source.text || "No preview available."}
+                        </p>
+
+                        {href ? (
+                          <a href={href} rel="noreferrer" target="_blank">
+                            Open source
+                          </a>
+                        ) : (
+                          <span className="source-path">
+                            {source.source_path || "Link unavailable"}
+                          </span>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="helper-copy source-empty">
+                  Ingest a PDF again after this update, then ask a question to see file,
+                  page, and link metadata here.
+                </p>
+              )}
             </div>
           </div>
         </section>

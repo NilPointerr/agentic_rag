@@ -5,6 +5,7 @@ from app.utils.logger import logger
 client = Groq(api_key=settings.GROQ_API_KEY)
 
 def generate_answer(messages: list):
+    """Send a chat-completions request to the configured Groq model."""
     logger.info(f"Generating answer with messages: {messages}")
     response = client.chat.completions.create(
         # model="mixtral-8x7b-32768",
