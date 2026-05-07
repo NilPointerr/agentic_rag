@@ -41,11 +41,22 @@ class Settings(BaseSettings):
     # -------------------------
     # RETRIEVAL CONFIG
     # -------------------------
-    TOP_K: int = 3
+    TOP_K: int = 5
+    RETRIEVAL_CANDIDATES: int = 20
+    HYBRID_SEARCH_ENABLED: bool = True
+    QUERY_EXPANSION_ENABLED: bool = True
+    RRF_K: int = 60
+    BM25_INDEX_PATH: str = "data/bm25_chunks.jsonl"
+    BM25_K1: float = 1.5
+    BM25_B: float = 0.75
+    RERANK_ENABLED: bool = True
+    RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    RERANK_CANDIDATES: int = 20
 
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
+        extra="ignore",
     )
 
 

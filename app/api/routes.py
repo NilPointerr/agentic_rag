@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from app.agent.rag_agent import rag_agent
@@ -29,6 +29,47 @@ class QueryRequest(BaseModel):
     query: str
 
 
+class SourceResponse(BaseModel):
+    """Source chunk returned by internal hybrid retrieval or web search."""
+
+    text: str | None = None
+    title: str | None = None
+    snippet: str | None = None
+    score: float | None = None
+    vector_score: float | None = None
+    bm25_score: float | None = None
+    rrf_score: float | None = None
+    rerank_score: float | None = None
+    retrieval_score: float | None = None
+    source_file: str | None = None
+    source_path: str | None = None
+    source_url: str | None = None
+    page_number: int | None = None
+    page_url: str | None = None
+    chunk_index: int | None = None
+    chunk_id: str | None = None
+    source_type: str | None = None
+
+
+class ImageResponse(BaseModel):
+    """Image result returned when web fallback is used."""
+
+    title: str | None = None
+    image_url: str | None = None
+    thumbnail_url: str | None = None
+    source_url: str | None = None
+    source: str | None = None
+
+
+class QueryResponse(BaseModel):
+    """Response payload for a RAG query."""
+
+    query: str
+    answer: str
+    sources: list[SourceResponse]
+    images: list[ImageResponse]
+
+
 # ---------------------------
 # Ingestion Endpoint
 # ---------------------------
@@ -39,8 +80,13 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/ingest")
 @log_execution
-async def ingest_documents(file: UploadFile = File(...)):
+async def ingest_documents(
+    file: UploadFile = File(...),
+    request: Request = None,
+):
     """Save an uploaded PDF, extract its text, and store chunk embeddings."""
+    if isinstance(file, Request) and hasattr(request, "filename"):
+        file = request
 
     try:
         logger.info(f"Starting ingest for file: {file.filename}")
@@ -95,10 +141,16 @@ async def ingest_documents(file: UploadFile = File(...)):
 # Query Endpoint
 # ---------------------------
 
-@router.post("/query")
+@router.post("/query", response_model=QueryResponse)
 @log_execution
-def query_agent(request: QueryRequest):
+def query_agent(
+    request: QueryRequest,
+    http_request: Request = None,
+) -> QueryResponse:
     """Run the RAG agent for a user query and return answer plus sources."""
+    if isinstance(request, Request) and isinstance(http_request, QueryRequest):
+        request = http_request
+
     try:
         if len(request.query) > settings.MAX_QUERY_LENGTH:
             raise HTTPException(
@@ -109,12 +161,12 @@ def query_agent(request: QueryRequest):
             )
 
         result = rag_agent(request.query)
-        return {
-            "query": request.query,
-            "answer": result["answer"],
-            "sources": result.get("sources", []),
-            "images": result.get("images", []),
-        }
+        return QueryResponse(
+            query=request.query,
+            answer=result["answer"],
+            sources=result.get("sources", []),
+            images=result.get("images", []),
+        )
 
     except HTTPException:
         raise
