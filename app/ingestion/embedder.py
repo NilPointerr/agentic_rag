@@ -1,6 +1,6 @@
 from sentence_transformers import SentenceTransformer
-from uuid import uuid4
 from app.config.settings import settings
+from app.retriever.bm25_store import BM25IndexError, build_chunk_id, upsert_documents
 from app.vectorstore.pinecone_client import (
     describe_index_stats,
     get_index,
@@ -17,7 +17,7 @@ def embed_texts(texts):
 
 
 def embed_and_store(chunks):
-    """Embed chunk records and upsert them into the vector store."""
+    """Embed chunk records and upsert them into vector and BM25 stores."""
     if not chunks:
         logger.info("No chunks available for embedding")
         return []
@@ -26,6 +26,9 @@ def embed_and_store(chunks):
         chunk_records = [{"text": chunk} for chunk in chunks]
     else:
         chunk_records = chunks
+
+    for chunk in chunk_records:
+        chunk["chunk_id"] = chunk.get("chunk_id") or build_chunk_id(chunk)
 
     embeddings = embed_texts([chunk["text"] for chunk in chunk_records])
     vectors = []
@@ -45,7 +48,7 @@ def embed_and_store(chunks):
         metadata["text"] = chunk["text"]
 
         vectors.append({
-            "id": f"doc-{uuid4()}",
+            "id": str(chunk["chunk_id"]),
             "values": embedding,
             "metadata": metadata
         })
@@ -66,5 +69,10 @@ def embed_and_store(chunks):
         logger.warning(
             f"Unable to read Pinecone index stats for '{active_index_name}': {exc}"
         )
+
+    try:
+        upsert_documents(chunk_records)
+    except BM25IndexError as exc:
+        logger.warning(f"BM25 corpus update failed after Pinecone upsert: {exc}")
 
     return embeddings
