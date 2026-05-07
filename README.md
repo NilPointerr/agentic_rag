@@ -3,8 +3,9 @@
 ### Overview
 
 Agentic RAG is a FastAPI-based retrieval-augmented generation (RAG) service that:
-- **Ingests PDF documents**, chunks them, and stores embeddings in **Pinecone**.
-- **Answers natural-language questions** by retrieving relevant context and calling a **Groq LLM** with tool usage (vector search + web search).
+- **Ingests PDF documents**, chunks them, stores embeddings in **Pinecone**, and stores chunk text in a local **BM25** corpus.
+- **Answers natural-language questions** with a hybrid retrieval pipeline: query expansion, BM25 search, vector search, RRF merge, cross-encoder reranking, then a **Groq LLM**.
+- **Falls back to web search** when the internal document context is not sufficient.
 
 The main HTTP API is exposed via FastAPI in `app.main:app`, with core logic implemented under the `app/` package.
 
@@ -13,6 +14,9 @@ The main HTTP API is exposed via FastAPI in `app.main:app`, with core logic impl
 - **Language**: Python (>= 3.12)
 - **API framework**: FastAPI + Uvicorn
 - **Vector store**: Pinecone
+- **Lexical search**: local Okapi BM25 JSONL corpus
+- **Hybrid merge**: Reciprocal Rank Fusion (RRF)
+- **Reranking**: `sentence-transformers` cross encoder
 - **LLM**: Groq (chat completions, tool calling)
 - **Embeddings**: `sentence-transformers` (default: `all-MiniLM-L6-v2`)
 - **Environment config**: `pydantic-settings` with `.env`
@@ -23,6 +27,8 @@ The main HTTP API is exposed via FastAPI in `app.main:app`, with core logic impl
 - `app/api/routes.py` – `/ingest` and `/query` endpoints.
 - `frontend/` – Next.js frontend for interacting with the API.
 - `app/ingestion/` – loading, chunking, embedding, and storing documents.
+- `app/retriever/bm25_store.py` – local BM25 corpus storage and lexical scoring.
+- `app/retriever/retriever.py` – hybrid retrieval, RRF merge, and reranking.
 - `app/vectorstore/pinecone_client.py` – Pinecone client & index management.
 - `app/llm/groq_client.py` – Groq client and chat completion wrapper.
 - `app/agent/rag_agent.py` – agent orchestration + tool usage.
@@ -36,7 +42,7 @@ The main HTTP API is exposed via FastAPI in `app.main:app`, with core logic impl
 - **Python**: 3.12 or later
 - **Pinecone account & API key**
 - **Groq account & API key**
-- (Recommended) **uv** (`pip install uv`) for dependency management, or use classic `pip`.
+- **uv** for dependency management.
 
 ### Environment Variables
 
@@ -51,7 +57,15 @@ GROQ_MODEL=mixtral-8x7b-32768                       # optional, default in code
 
 EMBEDDING_MODEL=all-MiniLM-L6-v2                    # optional, default in code
 EMBEDDING_DIMENSION=384                             # must match the model
-TOP_K=3                                             # optional
+
+TOP_K=5                                             # final chunks sent to the LLM
+RETRIEVAL_CANDIDATES=20                             # candidates requested from BM25/vector search
+RERANK_CANDIDATES=20                                # candidates sent to reranker
+HYBRID_SEARCH_ENABLED=true
+QUERY_EXPANSION_ENABLED=true
+BM25_INDEX_PATH=data/bm25_chunks.jsonl
+RRF_K=60
+
 CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
 ```
 
@@ -61,23 +75,44 @@ These are read via `app/config/settings.py` using `pydantic-settings`.
 
 ### Setup
 
-#### Option 1: Using `uv` (recommended)
-
 ```bash
 cd /home/dev62/Documents/agentic_rag
 uv sync          # installs dependencies from pyproject.toml / uv.lock
 ```
 
-#### Option 2: Using `pip`
+---
 
-Create and activate a virtual environment, then:
+### Retrieval Pipeline
 
-```bash
-cd /home/dev62/Documents/agentic_rag
-pip install -r requirements.txt
+The internal document search flow is:
+
+```text
+User Query
+    ↓
+Query Expansion
+    ↓
+Hybrid Search
+(BM25 + Vector)
+    ↓
+RRF Merge
+    ↓
+Re-ranking
+    ↓
+Top 5 Chunks
+    ↓
+LLM
 ```
 
----
+How it works:
+
+- **Query expansion** normalizes query terms for lexical search.
+- **BM25 search** runs against the local JSONL corpus at `BM25_INDEX_PATH`.
+- **Vector search** runs against Pinecone with the configured embedding model.
+- **RRF merge** deduplicates chunks by stable `chunk_id` and combines BM25/vector rankings.
+- **Reranking** uses the configured cross-encoder model when `RERANK_ENABLED=true`.
+- The final response uses `TOP_K=5` chunks by default.
+
+BM25 is built from chunk text during ingestion. If you already ingested documents before BM25 support was added, re-ingest those PDFs so their chunks are written to `data/bm25_chunks.jsonl`.
 
 ### Running the API
 
@@ -159,12 +194,12 @@ Open:
 ### API Endpoints (summary)
 
 - **POST** `/ingest`
-  - **Description**: Upload a PDF, extract text, chunk, embed, and store into Pinecone.
+  - **Description**: Upload a PDF, extract text, chunk, embed, store vectors in Pinecone, and upsert chunk text into the local BM25 corpus.
   - **Request**: `multipart/form-data` with field `file` (PDF only).
   - **Response**: JSON with message and number of chunks created.
 
 - **POST** `/query`
-  - **Description**: Ask a question; the agent retrieves context (via Pinecone or web search) and uses Groq to generate an answer.
+  - **Description**: Ask a question; the agent retrieves internal context using hybrid search and uses Groq to generate an answer. Web search is used when internal context is insufficient.
   - **Request body**:
     ```json
     {
@@ -175,7 +210,23 @@ Open:
     ```json
     {
       "query": "Your question here",
-      "answer": "Model-generated response..."
+      "answer": "Model-generated response...",
+      "sources": [
+        {
+          "text": "Retrieved chunk text...",
+          "score": 0.91,
+          "vector_score": 0.82,
+          "bm25_score": 3.14,
+          "rrf_score": 0.03,
+          "rerank_score": 0.91,
+          "source_file": "example.pdf",
+          "page_number": 2,
+          "page_url": "/uploads/example.pdf#page=2",
+          "chunk_index": 4,
+          "chunk_id": "stable_chunk_id"
+        }
+      ],
+      "images": []
     }
     ```
 
@@ -209,7 +260,8 @@ curl -X POST "http://localhost:8000/query" \
 ### Notes & Development
 
 - The ingestion logic (loading, chunking, embedding) lives under `app/ingestion/`.
-- Retrieval is implemented in `app/retriever/retriever.py` and used inside `rag_agent`.
-- The agent uses **tool calls** (vector search + web search) via Groq; you can customize tools in `app/llm_tools/llm_tools.py`.
+- BM25 storage is implemented in `app/retriever/bm25_store.py`.
+- Hybrid retrieval is implemented in `app/retriever/retriever.py` and used inside `rag_agent`.
+- The agent uses **tool calls** (hybrid internal search + web search) via Groq; you can customize tools in `app/llm_tools/llm_tools.py`.
 - For local experimentation, you can modify or extend `rag_agent` in `app/agent/rag_agent.py`.
 
