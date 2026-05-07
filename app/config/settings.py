@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # RETRIEVAL CONFIG
     # -------------------------
     TOP_K: int = 3
+    RERANK_ENABLED: bool = True
+    RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    RERANK_CANDIDATES: int = 8
 
     model_config = SettingsConfigDict(
         env_file=".env",

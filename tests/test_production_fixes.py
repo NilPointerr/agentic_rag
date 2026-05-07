@@ -35,6 +35,7 @@ def test_retrieve_returns_all_matches(monkeypatch):
             }
 
     monkeypatch.setattr(retriever, "get_index", lambda: FakeIndex())
+    monkeypatch.setattr(retriever.settings, "RERANK_ENABLED", False)
 
     sources, score = retriever.retrieve("test query", top_k=2)
 
@@ -61,6 +62,67 @@ def test_retrieve_returns_all_matches(monkeypatch):
         },
     ]
     assert score == 0.66
+
+
+def test_retrieve_reranks_results(monkeypatch):
+    """Ensure reranking can reorder Pinecone results before returning context."""
+    monkeypatch.setattr(
+        retriever,
+        "embed_texts",
+        lambda texts: [[0.1, 0.2, 0.3]],
+    )
+
+    class FakeIndex:
+        def query(self, **kwargs):
+            return {
+                "matches": [
+                    {"score": 0.95, "metadata": {"text": "vector winner"}},
+                    {"score": 0.70, "metadata": {"text": "rerank winner"}},
+                ]
+            }
+
+    class FakeReranker:
+        def predict(self, pairs):
+            return [0.2, 0.9]
+
+    monkeypatch.setattr(retriever, "get_index", lambda: FakeIndex())
+    monkeypatch.setattr(retriever.settings, "RERANK_ENABLED", True)
+    monkeypatch.setattr(retriever.settings, "RERANK_CANDIDATES", 8)
+    monkeypatch.setattr(retriever, "get_reranker", lambda: FakeReranker())
+
+    sources, score = retriever.retrieve("test query", top_k=2)
+
+    assert [source["text"] for source in sources] == ["rerank winner", "vector winner"]
+    assert sources[0]["vector_score"] == 0.70
+    assert sources[0]["rerank_score"] == 0.9
+    assert score == 0.55
+
+
+def test_retrieve_falls_back_when_reranker_unavailable(monkeypatch):
+    """Ensure retrieval still succeeds if the reranker cannot be loaded."""
+    monkeypatch.setattr(
+        retriever,
+        "embed_texts",
+        lambda texts: [[0.1, 0.2, 0.3]],
+    )
+
+    class FakeIndex:
+        def query(self, **kwargs):
+            return {
+                "matches": [
+                    {"score": 0.8, "metadata": {"text": "first"}},
+                    {"score": 0.6, "metadata": {"text": "second"}},
+                ]
+            }
+
+    monkeypatch.setattr(retriever, "get_index", lambda: FakeIndex())
+    monkeypatch.setattr(retriever.settings, "RERANK_ENABLED", True)
+    monkeypatch.setattr(retriever, "get_reranker", lambda: (_ for _ in ()).throw(RuntimeError("missing model")))
+
+    sources, score = retriever.retrieve("test query", top_k=2)
+
+    assert [source["text"] for source in sources] == ["first", "second"]
+    assert score == 0.7
 
 
 def test_web_search_returns_structured_results(monkeypatch):
