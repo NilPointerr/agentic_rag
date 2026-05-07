@@ -5,14 +5,14 @@ from app.search_tools.web_search import web_search
 @tool
 def vector_search_tool(query: str) -> dict:
     """
-    Search the internal knowledge base using vector similarity.
+    Search the internal knowledge base using hybrid retrieval.
 
     Use this tool when the user question is likely answered by documents
     stored in the system's internal database (PDFs, manuals, reports,
     company knowledge base, etc.).
 
-    This tool performs semantic search on the vector database and returns
-    the most relevant document chunks along with a similarity score.
+    This tool performs query expansion, BM25 lexical search, vector search,
+    RRF merge, and reranking before returning the most relevant chunks.
 
     Args:
         query (str): The user question or search query.
