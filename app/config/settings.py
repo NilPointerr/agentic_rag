@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     AUTH_ENABLED: bool = False
     JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
+    RATE_LIMIT_ENABLED: bool = False
 
     # -------------------------
     # PINECONE CONFIG
@@ -49,6 +50,7 @@ class Settings(BaseSettings):
     BM25_INDEX_PATH: str = "data/bm25_chunks.jsonl"
     BM25_K1: float = 1.5
     BM25_B: float = 0.75
+    DEDUP_REGISTRY_PATH: str = "data/dedup_registry.json"
     RERANK_ENABLED: bool = True
     RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     RERANK_CANDIDATES: int = 20

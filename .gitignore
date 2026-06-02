@@ -23,3 +23,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+
+data/bm25_chunks.jsonl
+data/dedup_registry.json
+data/uploads/

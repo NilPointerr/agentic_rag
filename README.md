@@ -4,6 +4,7 @@
 
 Agentic RAG is a FastAPI-based retrieval-augmented generation (RAG) service that:
 - **Ingests PDF documents**, chunks them, stores embeddings in **Pinecone**, and stores chunk text in a local **BM25** corpus.
+- **Skips duplicate PDF content** during ingestion using exact normalized-content hashes for both whole documents and individual chunks.
 - **Answers natural-language questions** with a hybrid retrieval pipeline: query expansion, BM25 search, vector search, RRF merge, cross-encoder reranking, then a **Groq LLM**.
 - **Falls back to web search** when the internal document context is not sufficient.
 
@@ -53,17 +54,19 @@ PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_INDEX_NAME=agentic-rag-index-dimension-384  # optional, has this default
 
 GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL=mixtral-8x7b-32768                       # optional, default in code
+GROQ_MODEL=qwen/qwen3-32b                           # optional, default in code
 
 EMBEDDING_MODEL=all-MiniLM-L6-v2                    # optional, default in code
 EMBEDDING_DIMENSION=384                             # must match the model
 
+RATE_LIMIT_ENABLED=false
 TOP_K=5                                             # final chunks sent to the LLM
 RETRIEVAL_CANDIDATES=20                             # candidates requested from BM25/vector search
 RERANK_CANDIDATES=20                                # candidates sent to reranker
 HYBRID_SEARCH_ENABLED=true
 QUERY_EXPANSION_ENABLED=true
 BM25_INDEX_PATH=data/bm25_chunks.jsonl
+DEDUP_REGISTRY_PATH=data/dedup_registry.json
 RRF_K=60
 
 CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
@@ -77,7 +80,7 @@ These are read via `app/config/settings.py` using `pydantic-settings`.
 
 ```bash
 cd /home/dev62/Documents/agentic_rag
-uv sync          # installs dependencies from pyproject.toml / uv.lock
+uv sync --group dev   # installs app + test dependencies from pyproject.toml / uv.lock
 ```
 
 ---
@@ -113,6 +116,38 @@ How it works:
 - The final response uses `TOP_K=5` chunks by default.
 
 BM25 is built from chunk text during ingestion. If you already ingested documents before BM25 support was added, re-ingest those PDFs so their chunks are written to `data/bm25_chunks.jsonl`.
+
+### Ingestion Pipeline
+
+The `/ingest` flow is:
+
+```text
+Upload PDF
+    ↓
+Save file locally
+    ↓
+Extract PDF text
+    ↓
+Normalize + hash full document text
+    ↓
+Skip if document hash already exists
+    ↓
+Chunk pages
+    ↓
+Normalize + hash each chunk
+    ↓
+Reserve only unseen chunk hashes
+    ↓
+Embed and index only new chunks
+    ↓
+Persist document/chunk dedup status
+```
+
+Notes:
+
+- Duplicate detection is based on the **normalized extracted PDF text**, not the PDF filename.
+- Exact duplicate detection ignores casing and whitespace differences.
+- Near-duplicate documents with small content edits are still treated as new content unless a chunk matches exactly after normalization.
 
 ### Running the API
 
@@ -194,9 +229,22 @@ Open:
 ### API Endpoints (summary)
 
 - **POST** `/ingest`
-  - **Description**: Upload a PDF, extract text, chunk, embed, store vectors in Pinecone, and upsert chunk text into the local BM25 corpus.
+  - **Description**: Upload a PDF, extract text, deduplicate by exact normalized content hash, embed only new chunks, store vectors in Pinecone, and upsert chunk text into the local BM25 corpus.
   - **Request**: `multipart/form-data` with field `file` (PDF only).
-  - **Response**: JSON with message and number of chunks created.
+  - **Response**:
+    ```json
+    {
+      "message": "PDF ingested successfully",
+      "file_name": "example.pdf",
+      "chunks_created": 8,
+      "chunks_embedded": 5,
+      "chunks_skipped_duplicate": 3,
+      "pinecone_index": "agentic-rag-index-dimension-384",
+      "skipped_duplicate": false,
+      "duplicate_reason": null,
+      "document_hash": "sha256-hash-of-normalized-document-text"
+    }
+    ```
 
 - **POST** `/query`
   - **Description**: Ask a question; the agent retrieves internal context using hybrid search and uses Groq to generate an answer. Web search is used when internal context is insufficient.
@@ -245,6 +293,12 @@ curl -X POST "http://localhost:8000/ingest" \
   -F "file=@data/uploads/Chhatrapati-Shivaji.pdf"
 ```
 
+Possible ingest outcomes:
+
+- A brand-new PDF returns `chunks_embedded > 0`.
+- A PDF with the same extracted text as an already indexed document returns `skipped_duplicate=true` and `duplicate_reason="document_hash_exists"`.
+- A partially overlapping PDF may return both `chunks_embedded > 0` and `chunks_skipped_duplicate > 0`.
+
 #### 2. Query the Agent
 
 ```bash
@@ -257,6 +311,45 @@ curl -X POST "http://localhost:8000/query" \
 
 ---
 
+### Running Tests
+
+Run the full test suite locally:
+
+```bash
+cd /home/dev62/Documents/agentic_rag
+uv run --group dev pytest -q
+```
+
+Run the full test suite with coverage:
+
+```bash
+cd /home/dev62/Documents/agentic_rag
+uv run --group dev pytest --cov=app --cov-report=term-missing
+```
+
+Coverage is configured to fail below `80%`.
+
+The test suite is organized by app area:
+
+- `tests/api/` for FastAPI route behavior
+- `tests/ingestion/` for chunking, hashing, dedup store, and PDF loading
+- `tests/retriever/` for BM25 and hybrid retrieval behavior
+- `tests/search/` for web search adapters
+- top-level `tests/test_*.py` files for cross-cutting modules like security, rate limiting, app wiring, and tool wrappers
+
+The ingestion and dedup tests cover these scenarios:
+
+- filename path traversal is sanitized before saving uploads
+- document hashes are stable across casing and whitespace changes
+- same content with different filenames is skipped as a duplicate document
+- formatting-only text differences are skipped as duplicates
+- same filename with different content is ingested as new content
+- partially overlapping documents embed only the new chunks
+- failed embeddings can be retried because `failed` dedup reservations do not permanently block later ingests
+- scanned or image-only PDFs return a clear client-facing error
+
+---
+
 ### Notes & Development
 
 - The ingestion logic (loading, chunking, embedding) lives under `app/ingestion/`.
@@ -264,4 +357,4 @@ curl -X POST "http://localhost:8000/query" \
 - Hybrid retrieval is implemented in `app/retriever/retriever.py` and used inside `rag_agent`.
 - The agent uses **tool calls** (hybrid internal search + web search) via Groq; you can customize tools in `app/llm_tools/llm_tools.py`.
 - For local experimentation, you can modify or extend `rag_agent` in `app/agent/rag_agent.py`.
-
+- `data/bm25_chunks.jsonl` and `data/dedup_registry.json` are generated runtime artifacts and are usually better kept out of Git.
